@@ -12,17 +12,44 @@
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; height: 100%; background: #000; color: #fff;
     font-family: -apple-system, "SF Pro Display", system-ui, sans-serif; overflow: hidden; }
-  #head { position: fixed; top: 0; left: 0; right: 0; z-index: 2;
-    padding: calc(env(safe-area-inset-top, 0px) + 14px) 22px 28px;
-    background: linear-gradient(#000 60%, transparent); color: #666; font-size: 14px; line-height: 1.3; }
-  #head b { color: #aaa; font-weight: 600; }
-  #lyrics { position: absolute; inset: 0; overflow: hidden; padding: 45vh 22px 55vh; }
-  .line { font-size: 26px; font-weight: 700; line-height: 1.25; margin: 0 0 22px; color: #333;
+  body { padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
+  #app { display: flex; height: 100%; width: 100%; }
+  body.left #app { flex-direction: row-reverse; }
+
+  /* panneau : titre, boutons, timer — du côté de la Dynamic Island */
+  #panel { width: clamp(104px, 26vw, 190px); flex: none; display: flex; flex-direction: column;
+    align-items: flex-end; text-align: right; padding: 12px 10px; gap: 12px; }
+  body.left #panel { align-items: flex-start; text-align: left; }
+  #title { color: #666; font-size: 13px; line-height: 1.25; max-width: 100%; }
+  #title b { display: block; color: #bbb; font-weight: 600; font-size: 14px;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  #ctl { display: flex; flex-direction: column; gap: 9px; }
+  #ctl button { width: 44px; height: 44px; border-radius: 50%; border: 1px solid #222; background: #000;
+    color: #fff; display: grid; place-items: center; padding: 0; }
+  #ctl button:active { background: #222; }
+  #ctl svg { width: 20px; height: 20px; fill: currentColor; }
+  #ctl .pp svg:last-child, #ctl .pp.paused svg:first-child { display: none; }
+  #ctl .pp.paused svg:last-child { display: block; }
+  #time { color: #888; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  /* paroles condensées, alignées à gauche */
+  #lyrics { flex: 1; min-width: 0; position: relative; overflow: hidden; padding: 38vh 8px 52vh 16px;
+    -webkit-mask-image: linear-gradient(transparent, #000 16%, #000 84%, transparent);
+    mask-image: linear-gradient(transparent, #000 16%, #000 84%, transparent); }
+  .line { font-size: 20px; font-weight: 700; line-height: 1.2; margin: 0 0 14px; color: #333;
     transition: color .45s ease, font-size .45s ease, text-shadow .45s ease; }
   .line[data-d="2"] { color: #555; }
   .line[data-d="1"] { color: #888; }
-  .line.active { font-size: 36px; color: #fff; text-shadow: 0 0 18px rgba(255,255,255,.35); }
-  #center { position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+  .line.active { font-size: 27px; color: #fff; text-shadow: 0 0 16px rgba(255,255,255,.3); }
+
+  /* mode piliers */
+  #bars { flex: 1; min-width: 0; display: none; align-items: flex-end; justify-content: center; gap: 5px; padding: 24px 14px; }
+  #bars i { flex: 1; max-width: 14px; height: 80%; background: #fff; border-radius: 999px;
+    transform-origin: bottom; transform: scaleY(.04); }
+  body.bars #bars { display: flex; }
+  body.bars #lyrics { display: none; }
+
+  #center { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 5; background: #000;
     text-align: center; padding: 30px; flex-direction: column; gap: 18px; color: #777; font-size: 17px; }
   #center button { background: #fff; color: #000; border: 0; border-radius: 999px;
     padding: 14px 28px; font-size: 17px; font-weight: 600; }
@@ -30,20 +57,34 @@
 </style>
 </head>
 <body>
-<div id="head"></div>
-<div id="lyrics"></div>
+<div id="app">
+  <div id="panel">
+    <div id="title"></div>
+    <div id="ctl">
+      <button id="bPrev" aria-label="Précédent"><svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
+      <button id="bPlay" class="pp" aria-label="Pause"><svg viewBox="0 0 24 24"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg><svg viewBox="0 0 24 24"><path d="M7 4v16l13-8z"/></svg></button>
+      <button id="bNext" aria-label="Suivant"><svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
+      <button id="bMode" aria-label="Paroles / piliers"><svg viewBox="0 0 24 24"><path d="M3 12h3v8H3zM8 6h3v14H8zM13 9h3v11h-3zM18 3h3v17h-3z"/></svg></button>
+    </div>
+    <div id="time"></div>
+  </div>
+  <div id="lyrics"></div>
+  <div id="bars"></div>
+</div>
 <div id="center"><span id="msg"></span><button id="btn" hidden></button></div>
 
 <script>
 // ====== CONFIG ======
 const CLIENT_ID = "d4e620cf6f6e4cc4a20e98cffc377a66";
 const REDIRECT_URI = "https://pomique.github.io/Paroles-Spotify/";
-const SCOPES = "user-read-playback-state user-read-currently-playing";
+const SCOPES = "user-read-playback-state user-read-currently-playing user-modify-playback-state";
 const OFFSET_MS = 250; // avance pour compenser la latence (ajuste si décalé)
+const NB_BARS = 24;
 // ====================
 
 const $ = id => document.getElementById(id);
-const head = $("head"), box = $("lyrics"), center = $("center"), msg = $("msg"), btn = $("btn");
+const titleEl = $("title"), box = $("lyrics"), center = $("center"), msg = $("msg"), btn = $("btn");
+const bPlay = $("bPlay"), timeEl = $("time"), barsEl = $("bars");
 const LS = localStorage;
 
 // ---------- Auth PKCE ----------
@@ -86,6 +127,20 @@ async function keepAwake() {
 }
 document.addEventListener("visibilitychange", keepAwake);
 
+// ---------- Côté de la Dynamic Island ----------
+let manualSide = null;
+function placeSide() {
+  let o = window.orientation;
+  if (o === undefined) o = (screen.orientation && screen.orientation.angle) || 0;
+  if (o === 270) o = -90;
+  const s = manualSide || (o === 90 ? "left" : "right"); // 90 = île à gauche, -90 = île à droite
+  document.body.classList.toggle("left", s === "left");
+}
+addEventListener("orientationchange", () => { manualSide = null; setTimeout(placeSide, 150); });
+addEventListener("resize", placeSide);
+titleEl.onclick = () => { manualSide = document.body.classList.contains("left") ? "right" : "left"; placeSide(); };
+placeSide();
+
 // ---------- Paroles (lrclib.net) ----------
 const cache = {};
 function parseLRC(txt) {
@@ -114,9 +169,28 @@ async function fetchLyrics(tr) {
   return (cache[tr.id] = lines && lines.length ? lines : null);
 }
 
+// ---------- Piliers (animation simulée : l'audio Spotify n'est pas accessible) ----------
+const bars = [];
+for (let i = 0; i < NB_BARS; i++) { const b = document.createElement("i"); barsEl.appendChild(b); bars.push(b); }
+let level = 0;
+function drawBars(now) {
+  const t = now / 1000;
+  level += ((base.playing ? 1 : 0) - level) * 0.08;
+  const beat = Math.pow(0.5 + 0.5 * Math.sin(t * Math.PI * 2 * 1.9), 3); // pulsation de grave
+  for (let i = 0; i < NB_BARS; i++) {
+    const f = i / (NB_BARS - 1);
+    const mix = 0.5 + 0.25 * Math.sin(t * (1.6 + f * 6) + i * 1.7) + 0.25 * Math.sin(t * (0.9 + f * 3.4) + i * 0.6);
+    const v = (0.12 + 0.88 * mix * (1 - f * 0.55) + beat * 0.35 * (1 - f)) * level;
+    bars[i].style.transform = "scaleY(" + Math.max(0.04, Math.min(1, v)).toFixed(3) + ")";
+  }
+}
+function setMode(m) { document.body.classList.toggle("bars", m === "bars"); LS.setItem("mode", m); }
+$("bMode").onclick = () => setMode(document.body.classList.contains("bars") ? "lyrics" : "bars");
+setMode(LS.getItem("mode") || "lyrics");
+
 // ---------- Affichage ----------
-let lines = [], els = [], cur = -2, trackId = null;
-let base = { progress: 0, at: 0, playing: false };
+let lines = [], els = [], cur = -2, trackId = null, lastSec = -1;
+let base = { progress: 0, at: 0, playing: false, duration: 0 };
 
 function render(list) {
   box.innerHTML = ""; els = []; cur = -2;
@@ -136,15 +210,39 @@ function setActive(i) {
   const el = els[i];
   if (el) box.scrollTo({ top: el.offsetTop - box.clientHeight * 0.4 + el.offsetHeight / 2 - 40, behavior: "smooth" });
 }
-function tick() {
+const curPos = () => base.progress + (base.playing ? performance.now() - base.at : 0);
+const fmt = ms => { const s = Math.max(0, Math.round(ms / 1000)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
+function tick(now) {
+  const pos = curPos();
   if (lines.length) {
-    const pos = base.progress + (base.playing ? performance.now() - base.at : 0) + OFFSET_MS;
+    const p = pos + OFFSET_MS;
     let i = -1;
-    for (let k = 0; k < lines.length && lines[k].t <= pos; k++) i = k;
+    for (let k = 0; k < lines.length && lines[k].t <= p; k++) i = k;
     if (i !== cur) setActive(i);
   }
+  const sec = Math.floor(pos / 1000);
+  if (sec !== lastSec && base.duration) { lastSec = sec; timeEl.textContent = "-" + fmt(base.duration - pos); }
+  if (document.body.classList.contains("bars")) drawBars(now);
   requestAnimationFrame(tick);
 }
+function setPlayIcon() { bPlay.classList.toggle("paused", !base.playing); bPlay.setAttribute("aria-label", base.playing ? "Pause" : "Lecture"); }
+
+// ---------- Commandes ----------
+async function ctl(method, path) {
+  try {
+    const r = await fetch("https://api.spotify.com/v1/me/player/" + path, { method, headers: { Authorization: "Bearer " + await getToken() } });
+    if (r.status === 401 || r.status === 403) show("Autorise le contrôle de la lecture (Spotify Premium requis).", "Se reconnecter", login);
+  } catch (e) {}
+  setTimeout(poll, 500);
+}
+$("bPrev").onclick = () => ctl("POST", "previous");
+$("bNext").onclick = () => ctl("POST", "next");
+bPlay.onclick = () => {
+  const p = curPos();
+  base = { ...base, progress: p, at: performance.now(), playing: !base.playing };
+  setPlayIcon();
+  ctl("PUT", base.playing ? "play" : "pause");
+};
 
 // ---------- Boucle Spotify Connect ----------
 async function poll() {
@@ -154,10 +252,11 @@ async function poll() {
     const s = await r.json();
     if (!s.item || s.currently_playing_type !== "track") { idle("Pas de morceau détecté."); return; }
     hide();
-    base = { progress: s.progress_ms, at: performance.now(), playing: s.is_playing };
+    base = { progress: s.progress_ms, at: performance.now(), playing: s.is_playing, duration: s.item.duration_ms };
+    setPlayIcon();
     if (s.item.id !== trackId) {
       trackId = s.item.id;
-      head.innerHTML = `<b>${s.item.name}</b><br>${s.item.artists.map(a => a.name).join(", ")}`;
+      titleEl.innerHTML = `<b>${s.item.name}</b>${s.item.artists.map(a => a.name).join(", ")}`;
       lines = []; box.innerHTML = ""; box.scrollTop = 0;
       const l = await fetchLyrics(s.item);
       if (trackId !== s.item.id) return;
@@ -167,16 +266,19 @@ async function poll() {
     show("Session expirée ou erreur réseau.", "Se reconnecter", login);
   }
 }
-function idle(text) { trackId = null; lines = []; box.innerHTML = ""; head.textContent = ""; show(text); }
+function idle(text) { trackId = null; lines = []; box.innerHTML = ""; titleEl.textContent = ""; timeEl.textContent = ""; base.playing = false; show(text); }
 
 // ---------- Démarrage ----------
 (async function init() {
   const code = new URLSearchParams(location.search).get("code");
   if (code) {
-    try { await tokenRequest({ grant_type: "authorization_code", code, redirect_uri: REDIRECT_URI, code_verifier: LS.getItem("verifier") }); }
+    try { await tokenRequest({ grant_type: "authorization_code", code, redirect_uri: REDIRECT_URI, code_verifier: LS.getItem("verifier") });
+      LS.setItem("scopes", SCOPES); }
     catch (e) {}
     history.replaceState({}, "", REDIRECT_URI);
   }
+  // nouvelle autorisation (contrôle de lecture) : reconnexion une seule fois
+  if (LS.getItem("scopes") !== SCOPES) { ["access", "refresh", "expires"].forEach(k => LS.removeItem(k)); }
   if (!LS.getItem("refresh")) { show("Affiche les paroles synchronisées de ce que tu écoutes sur Spotify.", "Se connecter à Spotify", login); return; }
   // le wake lock demande parfois un geste : on réessaie au premier toucher
   keepAwake(); document.addEventListener("click", keepAwake, { once: true });
