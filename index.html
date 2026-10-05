@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<title>Paroles OLED</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: #000; color: #fff;
+    font-family: -apple-system, "SF Pro Display", system-ui, sans-serif; overflow: hidden; }
+  #head { position: fixed; top: 0; left: 0; right: 0; z-index: 2;
+    padding: calc(env(safe-area-inset-top, 0px) + 14px) 22px 28px;
+    background: linear-gradient(#000 60%, transparent); color: #666; font-size: 14px; line-height: 1.3; }
+  #head b { color: #aaa; font-weight: 600; }
+  #lyrics { position: absolute; inset: 0; overflow: hidden; padding: 45vh 22px 55vh; }
+  .line { font-size: 26px; font-weight: 700; line-height: 1.25; margin: 0 0 22px; color: #333;
+    transition: color .45s ease, font-size .45s ease, text-shadow .45s ease; }
+  .line[data-d="2"] { color: #555; }
+  .line[data-d="1"] { color: #888; }
+  .line.active { font-size: 36px; color: #fff; text-shadow: 0 0 18px rgba(255,255,255,.35); }
+  #center { position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+    text-align: center; padding: 30px; flex-direction: column; gap: 18px; color: #777; font-size: 17px; }
+  #center button { background: #fff; color: #000; border: 0; border-radius: 999px;
+    padding: 14px 28px; font-size: 17px; font-weight: 600; }
+  #center.show { display: flex; }
+</style>
+</head>
+<body>
+<div id="head"></div>
+<div id="lyrics"></div>
+<div id="center"><span id="msg"></span><button id="btn" hidden></button></div>
+
+<script>
+// ====== CONFIG ======
+const CLIENT_ID = "c4babe4992884628b766f199b1569747";
+const REDIRECT_URI = location.origin + location.pathname; // à ajouter dans le dashboard Spotify
+const SCOPES = "user-read-playback-state user-read-currently-playing";
+const OFFSET_MS = 250; // avance pour compenser la latence (ajuste si décalé)
+// ====================
+
+const $ = id => document.getElementById(id);
+const head = $("head"), box = $("lyrics"), center = $("center"), msg = $("msg"), btn = $("btn");
+const LS = localStorage;
+
+// ---------- Auth PKCE ----------
+const rand = n => Array.from(crypto.getRandomValues(new Uint8Array(n))).map(b => "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"[b % 62]).join("");
+async function login() {
+  const verifier = rand(64);
+  LS.setItem("verifier", verifier);
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
+  const challenge = btoa(String.fromCharCode(...new Uint8Array(digest))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  location.href = "https://accounts.spotify.com/authorize?" + new URLSearchParams({
+    client_id: CLIENT_ID, response_type: "code", redirect_uri: REDIRECT_URI,
+    scope: SCOPES, code_challenge_method: "S256", code_challenge: challenge });
+}
+async function tokenRequest(params) {
+  const r = await fetch("https://accounts.spotify.com/api/token", {
+    method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ client_id: CLIENT_ID, ...params }) });
+  if (!r.ok) throw new Error("token");
+  const t = await r.json();
+  LS.setItem("access", t.access_token);
+  if (t.refresh_token) LS.setItem("refresh", t.refresh_token);
+  LS.setItem("expires", Date.now() + t.expires_in * 1000 - 60000);
+}
+async function getToken() {
+  if (Date.now() < +LS.getItem("expires")) return LS.getItem("access");
+  await tokenRequest({ grant_type: "refresh_token", refresh_token: LS.getItem("refresh") });
+  return LS.getItem("access");
+}
+function show(text, button, action) {
+  msg.textContent = text; center.classList.add("show");
+  btn.hidden = !button; if (button) { btn.textContent = button; btn.onclick = action; }
+}
+const hide = () => center.classList.remove("show");
+
+// ---------- Wake Lock (écran toujours allumé) ----------
+let wl = null;
+async function keepAwake() {
+  try { if ("wakeLock" in navigator && document.visibilityState === "visible") {
+    wl = await navigator.wakeLock.request("screen"); } } catch (e) {}
+}
+document.addEventListener("visibilitychange", keepAwake);
+
+// ---------- Paroles (lrclib.net) ----------
+const cache = {};
+function parseLRC(txt) {
+  const out = [];
+  for (const raw of txt.split("\n")) {
+    const m = raw.match(/^\[(\d+):(\d+(?:\.\d+)?)\]\s*(.*)$/);
+    if (m) out.push({ t: (+m[1]) * 60000 + parseFloat(m[2]) * 1000, text: m[3].trim() });
+  }
+  return out;
+}
+async function fetchLyrics(tr) {
+  if (cache[tr.id] !== undefined) return cache[tr.id];
+  const artist = tr.artists[0].name;
+  let res = null;
+  try {
+    const q = new URLSearchParams({ artist_name: artist, track_name: tr.name,
+      album_name: tr.album.name, duration: Math.round(tr.duration_ms / 1000) });
+    let r = await fetch("https://lrclib.net/api/get?" + q);
+    if (r.ok) res = await r.json();
+    if (!res || !res.syncedLyrics) {
+      r = await fetch("https://lrclib.net/api/search?" + new URLSearchParams({ artist_name: artist, track_name: tr.name }));
+      if (r.ok) res = (await r.json()).find(x => x.syncedLyrics) || res;
+    }
+  } catch (e) {}
+  const lines = res && res.syncedLyrics ? parseLRC(res.syncedLyrics) : null;
+  return (cache[tr.id] = lines && lines.length ? lines : null);
+}
+
+// ---------- Affichage ----------
+let lines = [], els = [], cur = -2, trackId = null;
+let base = { progress: 0, at: 0, playing: false };
+
+function render(list) {
+  box.innerHTML = ""; els = []; cur = -2;
+  for (const l of list) {
+    const p = document.createElement("p");
+    p.className = "line"; p.textContent = l.text || "♪";
+    box.appendChild(p); els.push(p);
+  }
+}
+function setActive(i) {
+  cur = i;
+  els.forEach((el, k) => {
+    const d = Math.abs(k - i);
+    el.classList.toggle("active", d === 0);
+    if (d > 0 && d < 3) el.dataset.d = d; else delete el.dataset.d;
+  });
+  const el = els[i];
+  if (el) box.scrollTo({ top: el.offsetTop - box.clientHeight * 0.4 + el.offsetHeight / 2 - 40, behavior: "smooth" });
+}
+function tick() {
+  if (lines.length) {
+    const pos = base.progress + (base.playing ? performance.now() - base.at : 0) + OFFSET_MS;
+    let i = -1;
+    for (let k = 0; k < lines.length && lines[k].t <= pos; k++) i = k;
+    if (i !== cur) setActive(i);
+  }
+  requestAnimationFrame(tick);
+}
+
+// ---------- Boucle Spotify Connect ----------
+async function poll() {
+  try {
+    const r = await fetch("https://api.spotify.com/v1/me/player", { headers: { Authorization: "Bearer " + await getToken() } });
+    if (r.status === 204 || !r.ok) { idle("Aucune lecture en cours. Lance une musique sur Spotify, puis choisis cet appareil via Spotify Connect si besoin."); return; }
+    const s = await r.json();
+    if (!s.item || s.currently_playing_type !== "track") { idle("Pas de morceau détecté."); return; }
+    hide();
+    base = { progress: s.progress_ms, at: performance.now(), playing: s.is_playing };
+    if (s.item.id !== trackId) {
+      trackId = s.item.id;
+      head.innerHTML = `<b>${s.item.name}</b><br>${s.item.artists.map(a => a.name).join(", ")}`;
+      lines = []; box.innerHTML = ""; box.scrollTop = 0;
+      const l = await fetchLyrics(s.item);
+      if (trackId !== s.item.id) return;
+      if (l) { lines = l; render(l); } else { box.innerHTML = '<p class="line" style="color:#555">Pas de paroles synchronisées pour ce titre.</p>'; }
+    }
+  } catch (e) {
+    show("Session expirée ou erreur réseau.", "Se reconnecter", login);
+  }
+}
+function idle(text) { trackId = null; lines = []; box.innerHTML = ""; head.textContent = ""; show(text); }
+
+// ---------- Démarrage ----------
+(async function init() {
+  const code = new URLSearchParams(location.search).get("code");
+  if (code) {
+    try { await tokenRequest({ grant_type: "authorization_code", code, redirect_uri: REDIRECT_URI, code_verifier: LS.getItem("verifier") }); }
+    catch (e) {}
+    history.replaceState({}, "", REDIRECT_URI);
+  }
+  if (!LS.getItem("refresh")) { show("Affiche les paroles synchronisées de ce que tu écoutes sur Spotify.", "Se connecter à Spotify", login); return; }
+  // le wake lock demande parfois un geste : on réessaie au premier toucher
+  keepAwake(); document.addEventListener("click", keepAwake, { once: true });
+  poll(); setInterval(poll, 3000); requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
