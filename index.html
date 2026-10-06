@@ -11,51 +11,55 @@
   :root { color-scheme: dark; }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; height: 100%; background: #000; color: #fff;
-    font-family: -apple-system, "SF Pro Display", system-ui, sans-serif; overflow: hidden; }
+    font-family: -apple-system, "SF Pro Display", system-ui, sans-serif; overflow: hidden; overscroll-behavior: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
   body { padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
   body:not(.left) { padding-left: 16px; }
   body.left { padding-right: 16px; }
-  #app { display: flex; height: 100%; width: 100%; }
+  :root { --c: 90,90,90; }
+  #glow { position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity .7s;
+    background: radial-gradient(90% 120% at 15% 100%, rgba(var(--c),.5), transparent 65%), radial-gradient(70% 100% at 100% 0%, rgba(var(--c),.22), transparent 60%); }
+  body.vibes #glow { opacity: 1; }
+  #app { position: relative; z-index: 1; display: flex; height: 100%; width: 100%; }
   #app { flex-direction: row-reverse; }
   body.left #app { flex-direction: row; }
 
   /* panneau : titre, boutons, timer — du côté de la Dynamic Island */
   #panel { flex: none; display: flex; flex-direction: column; justify-content: center; padding: 0 10px; }
-  /* au-dessus et en dessous de la Dynamic Island, tout contre le bord */
-  #tl, #bl { position: fixed; z-index: 3; right: 12px; max-width: min(200px, 40vw); text-align: right;
+  /* au-dessus de la Dynamic Island, tout contre le bord */
+  #tl { position: fixed; z-index: 3; max-width: min(200px, 40vw); text-align: right;
     display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
-  #tl { top: calc(env(safe-area-inset-top, 0px) + 10px); }
-  #bl { bottom: calc(env(safe-area-inset-bottom, 0px) + 10px); }
-  body.left #tl, body.left #bl { right: auto; left: 12px; text-align: left; align-items: flex-start; }
+  #tl { top: calc(env(safe-area-inset-top, 0px) + 24px); right: 28px; }
+  #bl { position: fixed; z-index: 3; display: flex; gap: 8px; right: 14px; bottom: calc(env(safe-area-inset-bottom, 0px) + 20px); }
+  body.left #bl { right: auto; left: 14px; }
+  body.left #tl { right: auto; left: 28px; text-align: left; align-items: flex-start; }
   #title { color: #666; font-size: 13px; line-height: 1.25; max-width: 100%; }
   #title b { display: block; color: #bbb; font-weight: 600; font-size: 14px;
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  #ctl, #ctl2 { display: flex; flex-direction: column; gap: 9px; }
-  #ctl button, #ctl2 button { width: 44px; height: 44px; border-radius: 50%; border: 1px solid #222; background: #000;
+  #ctl { display: flex; flex-direction: column; gap: 9px; }
+  #ctl button { width: 44px; height: 44px; border-radius: 50%; border: 1px solid #222; background: #000;
     color: #fff; display: grid; place-items: center; padding: 0; }
-  #ctl button:active, #ctl2 button:active { background: #222; }
-  #ctl svg, #ctl2 svg { width: 20px; height: 20px; fill: currentColor; }
+  #ctl button:active { background: #222; }
+  #bl button { width: 40px; height: 40px; border-radius: 50%; border: 1px solid #222; background: #000; color: #fff; padding: 0; display: grid; place-items: center; }
+  #bl svg { width: 20px; height: 20px; fill: currentColor; }
+  #bl button.on { background: #fff; color: #000; }
+  #bl button.load { opacity: .5; }
+  #ctl svg { width: 20px; height: 20px; fill: currentColor; }
   #ctl .pp svg:last-child, #ctl .pp.paused svg:first-child { display: none; }
   #ctl .pp.paused svg:last-child { display: block; }
   #time { color: #888; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
 
   /* paroles condensées, alignées à gauche */
   #lyrics { flex: 1; min-width: 0; position: relative; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; -webkit-overflow-scrolling: touch; padding: 38vh 10px 52vh 6px;
-    -webkit-mask-image: linear-gradient(transparent, #000 16%, #000 84%, transparent);
-    mask-image: linear-gradient(transparent, #000 16%, #000 84%, transparent); }
+    -webkit-mask-image: linear-gradient(transparent 100px, #000 150px, #000 84%, transparent);
+    mask-image: linear-gradient(transparent 100px, #000 150px, #000 84%, transparent); }
   #lyrics::-webkit-scrollbar { display: none; }
-  .line { cursor: pointer; font-size: 20px; font-weight: 700; line-height: 1.2; margin: 0 0 14px; color: #333;
+  .line { cursor: pointer; font-size: 20px; font-weight: 700; line-height: 1.2; margin: 0 0 14px; color: rgba(255,255,255,.22); letter-spacing: -.01em; text-wrap: pretty;
     transition: color .45s ease, font-size .45s ease, text-shadow .45s ease; }
-  .line[data-d="2"] { color: #555; }
-  .line[data-d="1"] { color: #888; }
+  .line[data-d="2"] { color: rgba(255,255,255,.36); }
+  .line[data-d="1"] { color: rgba(255,255,255,.58); }
+  .t { display: none; font-size: .6em; font-weight: 500; opacity: .7; margin-top: 3px; letter-spacing: 0; }
+  body.tr .t:not(:empty) { display: block; }
   .line.active { font-size: 27px; color: #fff; text-shadow: 0 0 16px rgba(255,255,255,.3); }
-
-  /* mode piliers */
-  #bars { flex: 1; min-width: 0; display: none; align-items: flex-end; justify-content: center; gap: 5px; padding: 24px 14px; }
-  #bars i { flex: 1; max-width: 14px; height: 80%; background: #fff; border-radius: 999px;
-    transform-origin: bottom; transform: scaleY(.04); }
-  body.bars #bars { display: flex; }
-  body.bars #lyrics { display: none; }
 
   #center { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 5; background: #000;
     text-align: center; padding: 30px; flex-direction: column; gap: 18px; color: #777; font-size: 17px; }
@@ -65,6 +69,7 @@
 </style>
 </head>
 <body>
+<div id="glow"></div>
 <div id="app">
   <div id="panel">
     <div id="ctl">
@@ -74,10 +79,12 @@
     </div>
   </div>
   <div id="lyrics"></div>
-  <div id="bars"></div>
 </div>
 <div id="tl"><div id="title"></div><div id="time"></div></div>
-<div id="bl"><div id="ctl2"><button id="bMode" aria-label="Paroles / piliers"><svg viewBox="0 0 24 24"><path d="M3 12h3v8H3zM8 6h3v14H8zM13 9h3v11h-3zM18 3h3v17h-3z"/></svg></button></div></div>
+<div id="bl">
+  <button id="bTr" aria-label="Traduction"><svg viewBox="0 0 24 24"><text x="1" y="14" font-size="13" font-family="-apple-system,sans-serif">文</text><text x="12" y="22" font-size="12" font-weight="700" font-family="-apple-system,sans-serif">A</text></svg></button>
+  <button id="bVibes" aria-label="Couleurs de l'album"><svg viewBox="0 0 24 24"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/></svg></button>
+</div>
 <div id="center"><span id="msg"></span><button id="btn" hidden></button></div>
 
 <script>
@@ -86,12 +93,11 @@ const CLIENT_ID = "d4e620cf6f6e4cc4a20e98cffc377a66";
 const REDIRECT_URI = "https://pomique.github.io/Paroles-Spotify/";
 const SCOPES = "user-read-playback-state user-read-currently-playing user-modify-playback-state";
 const OFFSET_MS = 250; // avance pour compenser la latence (ajuste si décalé)
-const NB_BARS = 24;
 // ====================
 
 const $ = id => document.getElementById(id);
 const titleEl = $("title"), box = $("lyrics"), center = $("center"), msg = $("msg"), btn = $("btn");
-const bPlay = $("bPlay"), timeEl = $("time"), barsEl = $("bars");
+const bPlay = $("bPlay"), timeEl = $("time"), bTr = $("bTr"), bVibes = $("bVibes");
 const LS = localStorage;
 
 // ---------- Auth PKCE ----------
@@ -176,25 +182,6 @@ async function fetchLyrics(tr) {
   return (cache[tr.id] = lines && lines.length ? lines : null);
 }
 
-// ---------- Piliers (animation simulée : l'audio Spotify n'est pas accessible) ----------
-const bars = [];
-for (let i = 0; i < NB_BARS; i++) { const b = document.createElement("i"); barsEl.appendChild(b); bars.push(b); }
-let level = 0;
-function drawBars(now) {
-  const t = now / 1000;
-  level += ((base.playing ? 1 : 0) - level) * 0.08;
-  const beat = Math.pow(0.5 + 0.5 * Math.sin(t * Math.PI * 2 * 1.9), 3); // pulsation de grave
-  for (let i = 0; i < NB_BARS; i++) {
-    const f = i / (NB_BARS - 1);
-    const mix = 0.5 + 0.25 * Math.sin(t * (1.6 + f * 6) + i * 1.7) + 0.25 * Math.sin(t * (0.9 + f * 3.4) + i * 0.6);
-    const v = (0.12 + 0.88 * mix * (1 - f * 0.55) + beat * 0.35 * (1 - f)) * level;
-    bars[i].style.transform = "scaleY(" + Math.max(0.04, Math.min(1, v)).toFixed(3) + ")";
-  }
-}
-function setMode(m) { document.body.classList.toggle("bars", m === "bars"); LS.setItem("mode", m); }
-$("bMode").onclick = () => setMode(document.body.classList.contains("bars") ? "lyrics" : "bars");
-setMode(LS.getItem("mode") || "lyrics");
-
 // ---------- Affichage ----------
 let lines = [], els = [], cur = -2, trackId = null, lastSec = -1;
 let base = { progress: 0, at: 0, playing: false, duration: 0 };
@@ -203,7 +190,9 @@ function render(list) {
   box.innerHTML = ""; els = []; cur = -2;
   for (const l of list) {
     const p = document.createElement("p");
-    p.className = "line"; p.textContent = l.text || "♪";
+    p.className = "line";
+    const o = document.createElement("span"), t = document.createElement("span");
+    o.textContent = l.text || "♪"; t.className = "t"; p.append(o, t);
     box.appendChild(p); els.push(p);
   }
 }
@@ -230,14 +219,16 @@ function tick(now) {
   const pos = curPos();
   if (lines.length) {
     const p = pos + OFFSET_MS;
-    let i = -1;
-    for (let k = 0; k < lines.length && lines[k].t <= p; k++) i = k;
-    if (i !== cur) setActive(i);
+    const n = lines.length;
+    if (!(cur >= 0 && p >= lines[cur].t && (cur + 1 >= n || p < lines[cur + 1].t))) {
+      let i = -1;
+      for (let k = 0; k < n && lines[k].t <= p; k++) i = k;
+      if (i !== cur) setActive(i);
+    }
   }
   if (holdUntil && now >= holdUntil) { holdUntil = 0; if (cur >= 0) centerOn(cur); } // le suivi reprend
   const sec = Math.floor(pos / 1000);
   if (sec !== lastSec && base.duration) { lastSec = sec; timeEl.textContent = "-" + fmt(base.duration - pos); }
-  if (document.body.classList.contains("bars")) drawBars(now);
   requestAnimationFrame(tick);
 }
 function setPlayIcon() { bPlay.classList.toggle("paused", !base.playing); bPlay.setAttribute("aria-label", base.playing ? "Pause" : "Lecture"); }
@@ -259,6 +250,60 @@ bPlay.onclick = () => {
   ctl("PUT", base.playing ? "play" : "pause");
 };
 
+// ---------- Traduction (en français) ----------
+const trCache = {};
+async function gt(q) {
+  const r = await fetch("https://translate.googleapis.com/translate_a/single", { method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ client: "gtx", sl: "auto", tl: "fr", dt: "t", q }) });
+  return (await r.json())[0].map(x => x[0]).join("");
+}
+async function translate(list) {
+  const src = list.map(l => l.text || "");
+  try { const out = (await gt(src.join("\n"))).split("\n"); if (out.length === src.length) return out; } catch (e) {}
+  const res = [];
+  for (let i = 0; i < src.length; i += 6) res.push(...await Promise.all(src.slice(i, i + 6).map(t => t ? gt(t).catch(() => "") : "")));
+  return res;
+}
+async function ensureTr() {
+  if (!document.body.classList.contains("tr") || !lines.length) return;
+  const id = trackId; let out = trCache[id];
+  if (!out) { bTr.classList.add("load"); try { out = trCache[id] = await translate(lines); } catch (e) {} bTr.classList.remove("load"); }
+  if (id !== trackId) return;
+  if (!out || !out.some(Boolean)) { document.body.classList.remove("tr"); bTr.classList.remove("on"); return; }
+  els.forEach((el, k) => { const o = (lines[k].text || "").trim().toLowerCase(), t = (out[k] || "").trim();
+    el.lastChild.textContent = t.toLowerCase() === o ? "" : t; });
+  if (cur >= 0) setTimeout(() => centerOn(cur), 60);
+}
+bTr.onclick = () => {
+  const on = document.body.classList.toggle("tr"); bTr.classList.toggle("on", on); LS.setItem("tr", on ? "1" : "");
+  if (on) ensureTr(); else if (cur >= 0) setTimeout(() => centerOn(cur), 60);
+};
+
+// ---------- Ambiance aux couleurs de l'album ----------
+function pickColor(url) {
+  return new Promise(res => {
+    const im = new Image(); im.crossOrigin = "anonymous";
+    im.onload = () => { try {
+      const c = document.createElement("canvas"); c.width = c.height = 24;
+      const x = c.getContext("2d"); x.drawImage(im, 0, 0, 24, 24);
+      const d = x.getImageData(0, 0, 24, 24).data; let r = 0, g = 0, b = 0, w = 0;
+      for (let i = 0; i < d.length; i += 4) {
+        const wt = Math.max(d[i], d[i + 1], d[i + 2]) - Math.min(d[i], d[i + 1], d[i + 2]) + 10;
+        r += d[i] * wt; g += d[i + 1] * wt; b += d[i + 2] * wt; w += wt; }
+      const k = 200 / (Math.max(r, g, b) / w || 1);
+      res([r, g, b].map(v => Math.min(255, Math.round(v / w * k))));
+    } catch (e) { res(null); } };
+    im.onerror = () => res(null); im.src = url;
+  });
+}
+bVibes.onclick = () => {
+  const on = document.body.classList.toggle("vibes"); bVibes.classList.toggle("on", on); LS.setItem("vibes", on ? "1" : "");
+};
+if (LS.getItem("tr")) { document.body.classList.add("tr"); bTr.classList.add("on"); }
+if (LS.getItem("vibes")) { document.body.classList.add("vibes"); bVibes.classList.add("on"); }
+document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
+
 // toucher une phrase : Spotify saute au timecode de cette phrase
 box.addEventListener("click", e => {
   const i = els.indexOf(e.target.closest(".line"));
@@ -271,6 +316,7 @@ box.addEventListener("click", e => {
 
 // ---------- Boucle Spotify Connect ----------
 async function poll() {
+  if (document.hidden) return;
   try {
     const r = await fetch("https://api.spotify.com/v1/me/player", { headers: { Authorization: "Bearer " + await getToken() } });
     if (r.status === 204 || !r.ok) { idle("Aucune lecture en cours. Lance une musique sur Spotify, puis choisis cet appareil via Spotify Connect si besoin."); return; }
@@ -281,11 +327,15 @@ async function poll() {
     setPlayIcon();
     if (s.item.id !== trackId) {
       trackId = s.item.id;
-      titleEl.innerHTML = `<b>${s.item.name}</b>${s.item.artists.map(a => a.name).join(", ")}`;
+      titleEl.textContent = "";
+      const bt = document.createElement("b"); bt.textContent = s.item.name;
+      titleEl.append(bt, s.item.artists.map(a => a.name).join(", "));
+      const im = s.item.album.images, u = im.length && im[im.length - 1].url;
+      if (u) pickColor(u).then(c => { if (c) document.documentElement.style.setProperty("--c", c.join(",")); });
       lines = []; box.innerHTML = ""; box.scrollTop = 0;
       const l = await fetchLyrics(s.item);
       if (trackId !== s.item.id) return;
-      if (l) { lines = l; render(l); } else { box.innerHTML = '<p class="line" style="color:#555">Pas de paroles synchronisées pour ce titre.</p>'; }
+      if (l) { lines = l; render(l); ensureTr(); } else { box.innerHTML = '<p class="line" style="color:#555">Pas de paroles synchronisées pour ce titre.</p>'; }
     }
   } catch (e) {
     show("Session expirée ou erreur réseau.", "Se reconnecter", login);
