@@ -14,20 +14,22 @@
     font-family: -apple-system, "SF Pro Display", system-ui, sans-serif; overflow: hidden; }
   body { padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
   #app { display: flex; height: 100%; width: 100%; }
-  body.left #app { flex-direction: row-reverse; }
+  #app { flex-direction: row-reverse; }
+  body.left #app { flex-direction: row; }
 
   /* panneau : titre, boutons, timer — du côté de la Dynamic Island */
   #panel { width: clamp(104px, 26vw, 190px); flex: none; display: flex; flex-direction: column;
-    align-items: flex-end; text-align: right; padding: 12px 10px; gap: 12px; }
+    align-items: flex-end; text-align: right; padding: 12px 10px; gap: 10px; }
   body.left #panel { align-items: flex-start; text-align: left; }
   #title { color: #666; font-size: 13px; line-height: 1.25; max-width: 100%; }
   #title b { display: block; color: #bbb; font-weight: 600; font-size: 14px;
     display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-  #ctl { display: flex; flex-direction: column; gap: 9px; }
-  #ctl button { width: 44px; height: 44px; border-radius: 50%; border: 1px solid #222; background: #000;
+  #ctl, #ctl2 { display: flex; flex-direction: column; gap: 9px; }
+  #ctl2 { margin-top: auto; }
+  #ctl button, #ctl2 button { width: 44px; height: 44px; border-radius: 50%; border: 1px solid #222; background: #000;
     color: #fff; display: grid; place-items: center; padding: 0; }
-  #ctl button:active { background: #222; }
-  #ctl svg { width: 20px; height: 20px; fill: currentColor; }
+  #ctl button:active, #ctl2 button:active { background: #222; }
+  #ctl svg, #ctl2 svg { width: 20px; height: 20px; fill: currentColor; }
   #ctl .pp svg:last-child, #ctl .pp.paused svg:first-child { display: none; }
   #ctl .pp.paused svg:last-child { display: block; }
   #time { color: #888; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -60,13 +62,15 @@
 <div id="app">
   <div id="panel">
     <div id="title"></div>
+    <div id="time"></div>
     <div id="ctl">
       <button id="bPrev" aria-label="Précédent"><svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
       <button id="bPlay" class="pp" aria-label="Pause"><svg viewBox="0 0 24 24"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg><svg viewBox="0 0 24 24"><path d="M7 4v16l13-8z"/></svg></button>
       <button id="bNext" aria-label="Suivant"><svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
+    </div>
+    <div id="ctl2">
       <button id="bMode" aria-label="Paroles / piliers"><svg viewBox="0 0 24 24"><path d="M3 12h3v8H3zM8 6h3v14H8zM13 9h3v11h-3zM18 3h3v17h-3z"/></svg></button>
     </div>
-    <div id="time"></div>
   </div>
   <div id="lyrics"></div>
   <div id="bars"></div>
