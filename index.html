@@ -66,6 +66,30 @@
   #center button { background: #fff; color: #000; border: 0; border-radius: 999px;
     padding: 14px 28px; font-size: 17px; font-weight: 600; }
   #center.show { display: flex; }
+
+  /* boutons discrets : ils s'effacent seuls, un toucher les ramène */
+  #panel, #bl { transition: opacity .6s ease; }
+  body.idle #panel, body.idle #bl { opacity: 0; pointer-events: none; }
+
+  /* choisir une musique (appui long sur le titre) */
+  #pick { position: fixed; inset: 0; z-index: 6; display: none; flex-direction: column; gap: 10px; background: #000;
+    padding: max(22px, calc(env(safe-area-inset-top, 0px) + 10px)) calc(env(safe-area-inset-right, 0px) + 16px) calc(env(safe-area-inset-bottom, 0px) + 10px) calc(env(safe-area-inset-left, 0px) + 16px); }
+  #pick.show { display: flex; }
+  #ph { display: flex; gap: 10px; flex: none; }
+  #q { flex: 1; min-width: 0; height: 40px; border-radius: 20px; border: 1px solid #333; background: #000; color: #fff;
+    font: 16px -apple-system, system-ui, sans-serif; padding: 0 16px; outline: none; -webkit-user-select: text; user-select: text; }
+  #px { width: 40px; height: 40px; flex: none; border-radius: 50%; border: 1px solid #222; background: #000; color: #fff; padding: 0; display: grid; place-items: center; }
+  #px svg { width: 18px; height: 18px; fill: currentColor; }
+  #note { color: #777; font-size: 14px; flex: none; } #note:empty { display: none; }
+  #pl { flex: 1; overflow-y: auto; scrollbar-width: none; display: grid; align-content: start; gap: 2px 12px;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
+  #pl::-webkit-scrollbar { display: none; }
+  .row { display: flex; align-items: center; gap: 12px; padding: 7px; border-radius: 12px; min-width: 0; }
+  .row:active { background: #1a1a1a; }
+  .cv { width: 44px; height: 44px; flex: none; border-radius: 6px; background: #161616 center / cover; display: grid; place-items: center; color: #aaa; font-size: 18px; }
+  .row div:last-child { min-width: 0; flex: 1; }
+  .row b, .row span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row b { font-size: 15px; font-weight: 600; } .row span { font-size: 13px; color: #777; margin-top: 2px; }
 </style>
 </head>
 <body>
@@ -85,13 +109,18 @@
   <button id="bTr" aria-label="Traduction"><svg viewBox="0 0 24 24"><text x="1" y="14" font-size="13" font-family="-apple-system,sans-serif">文</text><text x="12" y="22" font-size="12" font-weight="700" font-family="-apple-system,sans-serif">A</text></svg></button>
   <button id="bVibes" aria-label="Couleurs de l'album"><svg viewBox="0 0 24 24"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/></svg></button>
 </div>
+<div id="pick">
+  <div id="ph"><input id="q" type="search" placeholder="Rechercher un titre" enterkeyhint="search" autocomplete="off" autocapitalize="off">
+    <button id="px" aria-label="Fermer"><svg viewBox="0 0 24 24"><path d="M5.3 3.9L12 10.6l6.7-6.7 1.4 1.4-6.7 6.7 6.7 6.7-1.4 1.4-6.7-6.7-6.7 6.7-1.4-1.4 6.7-6.7-6.7-6.7z"/></svg></button></div>
+  <div id="note"></div><div id="pl"></div>
+</div>
 <div id="center"><span id="msg"></span><button id="btn" hidden></button></div>
 
 <script>
 // ====== CONFIG ======
 const CLIENT_ID = "d4e620cf6f6e4cc4a20e98cffc377a66";
 const REDIRECT_URI = "https://pomique.github.io/Paroles-Spotify/";
-const SCOPES = "user-read-playback-state user-read-currently-playing user-modify-playback-state";
+const SCOPES = "user-read-playback-state user-read-currently-playing user-modify-playback-state playlist-read-private playlist-read-collaborative user-library-read";
 const OFFSET_MS = 250; // avance pour compenser la latence (ajuste si décalé)
 // ====================
 
@@ -306,6 +335,7 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) poll
 
 // toucher une phrase : Spotify saute au timecode de cette phrase
 box.addEventListener("click", e => {
+  if (tapWasIdle) { tapWasIdle = false; return; } // le 1er toucher ne fait que réafficher les boutons
   const i = els.indexOf(e.target.closest(".line"));
   if (i < 0 || !lines[i]) return;
   const ms = Math.max(0, Math.round(lines[i].t));
@@ -313,6 +343,64 @@ box.addEventListener("click", e => {
   lastSec = -1; holdUntil = 0; setActive(i);
   ctl("PUT", "seek?position_ms=" + ms);
 });
+
+// ---------- Choisir une musique : appui long sur le titre ----------
+const pick = $("pick"), pl = $("pl"), qEl = $("q"), noteEl = $("note"), tl = $("tl");
+const note = t => noteEl.textContent = t || "";
+const cover = im => im && im.length ? im[Math.min(1, im.length - 1)].url : null;
+async function api(path, opt = {}) {
+  const r = await fetch("https://api.spotify.com/v1/" + path, { ...opt, headers: { Authorization: "Bearer " + await getToken(), "Content-Type": "application/json" } });
+  if (!r.ok) throw r.status;
+  return r.status === 204 ? null : r.json();
+}
+function row(img, title, sub, tap) {
+  const d = document.createElement("div"), c = document.createElement("div"), t = document.createElement("div");
+  const a = document.createElement("b"), b = document.createElement("span");
+  d.className = "row"; c.className = "cv"; if (img) c.style.backgroundImage = "url(" + img + ")"; else c.textContent = "♥";
+  a.textContent = title; b.textContent = sub || ""; t.append(a, b); d.append(c, t); d.onclick = tap; return d;
+}
+async function playIt(body) {
+  try { await api("me/player/play", { method: "PUT", body: JSON.stringify(body) }); closePick(); setTimeout(poll, 800); }
+  catch (e) { note(e === 404 ? "Ouvre Spotify sur un appareil, puis réessaie." : e === 403 ? "Spotify Premium requis pour lancer un titre." : "Impossible de lancer ce titre."); }
+}
+async function loadLists() {
+  pl.textContent = ""; note("");
+  try {
+    const d = await api("me/playlists?limit=50");
+    pl.append(row(null, "Titres likés", "", async () => {
+      try { const t = await api("me/tracks?limit=50"); playIt({ uris: t.items.map(x => (x.track || x.item).uri) }); }
+      catch (e) { note("Titres likés indisponibles."); } }));
+    d.items.filter(Boolean).forEach(p => pl.append(row(cover(p.images), p.name, p.owner && p.owner.display_name, () => playIt({ context_uri: p.uri }))));
+  } catch (e) { note(e === 403 ? "Reconnecte-toi pour autoriser l'accès à tes playlists." : "Impossible de charger tes playlists."); }
+}
+function openPick() { pick.classList.add("show"); qEl.value = ""; loadLists(); }
+function closePick() { pick.classList.remove("show"); qEl.blur(); }
+$("px").onclick = closePick;
+let qT = 0;
+qEl.addEventListener("input", () => {
+  clearTimeout(qT);
+  qT = setTimeout(async () => {
+    const q = qEl.value.trim();
+    if (!q) { loadLists(); return; }
+    try {
+      const d = await api("search?type=track&limit=10&q=" + encodeURIComponent(q));
+      pl.textContent = ""; note(d.tracks.items.length ? "" : "Aucun résultat.");
+      d.tracks.items.forEach(t => pl.append(row(cover(t.album.images), t.name, t.artists.map(a => a.name).join(", "), () => playIt({ uris: [t.uri] }))));
+    } catch (e) { note("Recherche indisponible."); }
+  }, 400);
+});
+let longFired = false, lpTimer = 0;
+tl.addEventListener("pointerdown", () => { longFired = false; lpTimer = setTimeout(() => { longFired = true; openPick(); }, 550); });
+["pointerup", "pointercancel", "pointerleave"].forEach(ev => tl.addEventListener(ev, () => clearTimeout(lpTimer)));
+tl.addEventListener("click", e => { if (longFired) { e.stopPropagation(); longFired = false; } }, true);
+
+// ---------- Boutons discrets : ils s'effacent après 6 s, un toucher les ramène ----------
+let idleT = 0, tapWasIdle = false;
+function wake() {
+  tapWasIdle = document.body.classList.contains("idle"); document.body.classList.remove("idle");
+  clearTimeout(idleT); idleT = setTimeout(() => document.body.classList.add("idle"), 6000);
+}
+document.addEventListener("pointerdown", wake, true); wake();
 
 // ---------- Boucle Spotify Connect ----------
 async function poll() {
